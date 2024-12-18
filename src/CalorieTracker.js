@@ -21,10 +21,29 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
     fats: 65
   });
 
+  // Add state for input validation
+  const [weightError, setWeightError] = useState('');
+
+  // Simplify input handler to just update state
+  const handleWeightChange = (e) => {
+    setWeight(parseInt(e.target.value, 10));
+    setWeightError(''); // Clear any previous error
+  };
+
   // Calculate total macros from eaten foods
   useEffect(() => {
+    if (!Array.isArray(eatenFoods)) {
+      console.error('eatenFoods is not an array:', eatenFoods);
+      setMacros({ calories: 0, protein: 0, carbs: 0, fats: 0 });
+      return;
+    }
+
     const totals = eatenFoods.reduce((sum, food) => {
       const foodItem = foodList.find(f => f.id === food.food);
+      if (!foodItem) {
+        console.warn('Food item not found:', food);
+        return sum;
+      }
       return {
         calories: sum.calories + (foodItem.calories * food.weight) / 100,
         protein: sum.protein + (foodItem.protein * food.weight) / 100,
@@ -32,20 +51,44 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
         fats: sum.fats + (foodItem.fats * food.weight) / 100
       };
     }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
     setMacros(totals);
   }, [eatenFoods, foodList]);
+
   // Add food with macros
   const handleAddFood = () => {
+    // Validate weight first
+    if (isNaN(weight) || weight <= 0) {
+      setWeightError('Weight must be a positive number');
+      return;
+    }
+
     const food = foodList.find((item) => item.name === selectedFood);
     if (food) {
+      const token = localStorage.getItem('token');
+      for (var i = 0; i < localStorage.length; i++){
+        console.log(localStorage.getItem(localStorage.key(i)));
+      }
       fetch("http://localhost:8000/eaten-foods/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ food: food.id, weight }),
       })
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error('Failed to add food');
+          }
+          return response.json();
+        })
         .then((newEatenFood) => {
-          setEatenFoods((prev) => [...prev, newEatenFood]);
+          setEatenFoods(prev => {
+            const prevArray = Array.isArray(prev) ? prev : [];
+            return [...prevArray, newEatenFood];
+          });
+          setWeightError('');
         })
         .catch((error) => console.error("Error adding eaten food:", error));
     }
@@ -53,10 +96,17 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
 
   // Remove food from eaten list
   const handleRemoveFood = (id) => {
+    const token = localStorage.getItem('token');
     fetch(`http://localhost:8000/eaten-foods/${id}/`, {
       method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
     })
-      .then(() => {
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to remove food');
+        }
         setEatenFoods((prev) => prev.filter((item) => item.id !== id));
       })
       .catch((error) => {
@@ -96,6 +146,9 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
     justifyContent: 'space-between'
   };
 
+  // Initialize with empty array if undefined
+  const safeEatenFoods = Array.isArray(eatenFoods) ? eatenFoods : [];
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
       <h1>Calorie Tracker</h1>
@@ -109,6 +162,7 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
             pathColor: "#4CAF50",
             textColor: "#4CAF50",
             trailColor: "#d6d6d6",
+            textSize: "16px",
           })}
         />
       </div>
@@ -165,13 +219,26 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
             </option>
           ))}
         </select>
-        <input
-          type="number"
-          value={weight}
-          onChange={(e) => setWeight(parseInt(e.target.value, 10) || 100)}
-          placeholder="Weight (g)"
-          style={{ marginLeft: "10px", width: "100px" }}
-        />
+        <div>
+          <input
+            type="number"
+            value={weight}
+            onChange={handleWeightChange}
+            min="1"
+            step="1"
+            placeholder="Weight (g)"
+            style={{
+              marginLeft: "10px",
+              width: "100px",
+              borderColor: weightError ? '#ff0000' : 'initial'
+            }}
+          />
+          {weightError && (
+            <div style={{ color: '#ff0000', fontSize: '12px', marginTop: '4px' }}>
+              {weightError}
+            </div>
+          )}
+        </div>
         <button onClick={handleAddFood} style={{ marginLeft: "10px" }}>
           Add Food
         </button>
@@ -180,7 +247,7 @@ function CalorieTracker({ foodList, eatenFoods, setEatenFoods }) {
       {/* Added Foods List */}
       <h2>Consumed Foods</h2>
       <ul style={{ listStyle: 'none', padding: 0 }}>
-        {eatenFoods.map((food) => {
+        {safeEatenFoods.map((food) => {
         const foodItem = foodList.find(f => f.id === food.food);
         console.log(foodItem);
         return (

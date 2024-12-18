@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import CalorieTracker from "./CalorieTracker";
 import FoodListManager from "./FoodListManager";
+import { AuthProvider } from "./AuthContext";
+import { Login } from "./components/Login";
+import { Register } from "./components/Register";
+import { ProtectedRoute } from "./components/ProtectedRoute"; 
 
 function App() {
   const [foodList, setFoodList] = useState([]);
@@ -26,39 +30,39 @@ function App() {
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <Router>
-      <div style={{ textAlign: "center", padding: "20px" }}>
-        <nav style={{ marginBottom: "20px" }}>
-          <Link to="/" style={{ margin: "0 10px" }}>
-            Calorie Tracker
-          </Link>
-          <Link to="/food-list" style={{ margin: "0 10px" }}>
-            Manage Food List
-          </Link>
-        </nav>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <CalorieTracker
-                foodList={foodList}
-                eatenFoods={eatenFoods}
-                setEatenFoods={setEatenFoods}
-              />
-            }
-          />
-          <Route
-            path="/food-list"
-            element={
-              <FoodListManager
-                foodList={foodList}
-                setFoodList={setFoodList}
-              />
-            }
-          />
-        </Routes>
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <div style={{ textAlign: "center", padding: "20px" }}>
+          <nav style={{ marginBottom: "20px" }}>
+            <Link to="/" style={{ margin: "0 10px" }}>Calorie Tracker</Link>
+            <Link to="/food-list" style={{ margin: "0 10px" }}>Manage Food List</Link>
+            <Link to="/login" style={{ margin: "0 10px" }}>Login</Link>
+            <Link to="/register" style={{ margin: "0 10px" }}>Register</Link>
+          </nav>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <CalorieTracker 
+                  foodList={foodList}
+                  eatenFoods={eatenFoods}
+                  setEatenFoods={setEatenFoods}
+                />
+              </ProtectedRoute>
+            } />
+            <Route path="/food-list" element={
+              <ProtectedRoute>
+                <FoodListManager
+                  foodList={foodList}
+                  setFoodList={setFoodList}
+                />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
