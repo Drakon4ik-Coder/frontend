@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyToken = async (tokenToVerify) => {
     try {
-      const response = await fetch('http://localhost:8000/api/token/verify/', {
+      const response = await fetch('https://Drakon4ik.pythonanywhere.com/api/token/verify/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenToVerify }),
@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     if (!refreshToken) return false;
 
     try {
-      const response = await fetch('http://localhost:8000/api/token/refresh/', {
+      const response = await fetch('https://Drakon4ik.pythonanywhere.com/api/token/refresh/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh: refreshToken }),
