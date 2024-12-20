@@ -6,6 +6,8 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(getCookie('accessToken') || localStorage.getItem('token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const verifyToken = async (tokenToVerify) => {
     try {
@@ -47,6 +49,7 @@ export const AuthProvider = ({ children }) => {
   const login = (userData) => {
     setUser(userData);
     setToken(userData.token);
+    setIsAuthenticated(true);
     localStorage.setItem('token', userData.token);
     setCookie('accessToken', userData.token);
     setCookie('refreshToken', userData.refreshToken);
@@ -55,6 +58,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    setIsAuthenticated(false);
     localStorage.removeItem('token');
     deleteCookie('accessToken');
     deleteCookie('refreshToken');
@@ -65,26 +69,38 @@ export const AuthProvider = ({ children }) => {
     if (!accessToken) return false;
 
     const isValid = await verifyToken(accessToken);
-    if (isValid) return true;
+    if (isValid) {
+      setIsAuthenticated(true);
+      return true;
+    }
 
     const refreshed = await refreshToken();
+    setIsAuthenticated(refreshed);
     return refreshed;
   }, []);
 
-  // Add initial auth check on component mount
   useEffect(() => {
     const initialAuthCheck = async () => {
+      setIsLoading(true);
       const isAuth = await checkAuth();
-      console.log(isAuth);
       if (!isAuth) {
         logout();
       }
+      setIsLoading(false);
     };
     initialAuthCheck();
-  }, []);
+  }, [checkAuth]);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      login, 
+      logout, 
+      checkAuth, 
+      isAuthenticated,
+      isLoading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

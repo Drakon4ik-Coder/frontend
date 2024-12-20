@@ -1,9 +1,19 @@
-
 import React, { useState, useEffect } from "react";
+import { useAuth } from './AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 function Settings() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState({
+    goal_calories: 2000,
+    goal_protein: 150,
+    goal_carbs: 250,
+    goal_fats: 45
+  });
+  // Add new state for temporary values
+  const [tempGoals, setTempGoals] = useState({
     goal_calories: 2000,
     goal_protein: 150,
     goal_carbs: 250,
@@ -23,6 +33,7 @@ function Settings() {
       })
       .then(settings => {
         setGoals(settings);
+        setTempGoals(settings); // Also set temporary goals
         setLoading(false);
       })
       .catch(error => {
@@ -31,18 +42,16 @@ function Settings() {
       });
   }, []);
 
-  const handleUpdateGoal = async (newValue, type) => {
+  const handleUpdateGoals = async () => {
     const token = localStorage.getItem('token');
-    const updatedGoals = { ...goals, [type]: newValue };
-
     try {
       const response = await fetch('http://localhost:8000/user-settings/', {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(updatedGoals)
+        body: JSON.stringify(tempGoals)
       });
 
       if (!response.ok) {
@@ -51,10 +60,23 @@ function Settings() {
 
       const updatedSettings = await response.json();
       setGoals(updatedSettings);
+      alert('Goals updated successfully!');
     } catch (error) {
       console.error('Error updating settings:', error);
       alert('Failed to update goals');
     }
+  };
+
+  const handleInputChange = (value, type) => {
+    setTempGoals(prev => ({
+      ...prev,
+      [type]: parseInt(value, 10)
+    }));
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   if (loading) {
@@ -70,8 +92,8 @@ function Settings() {
             Daily Calorie Goal:
             <input
               type="number"
-              value={goals.goal_calories}
-              onChange={(e) => handleUpdateGoal(parseInt(e.target.value, 10), 'goal_calories')}
+              value={tempGoals.goal_calories}
+              onChange={(e) => handleInputChange(e.target.value, 'goal_calories')}
               style={{
                 marginLeft: "10px",
                 padding: "5px",
@@ -87,8 +109,8 @@ function Settings() {
             Daily Protein Goal:
             <input
               type="number"
-              value={goals.goal_protein}
-              onChange={(e) => handleUpdateGoal(parseFloat(e.target.value), 'goal_protein')}
+              value={tempGoals.goal_protein}
+              onChange={(e) => handleInputChange(e.target.value, 'goal_protein')}
               style={{
                 marginLeft: "10px",
                 padding: "5px",
@@ -104,8 +126,8 @@ function Settings() {
             Daily Carbs Goal:
             <input
               type="number"
-              value={goals.goal_carbs}
-              onChange={(e) => handleUpdateGoal(parseFloat(e.target.value), 'goal_carbs')}
+              value={tempGoals.goal_carbs}
+              onChange={(e) => handleInputChange(e.target.value, 'goal_carbs')}
               style={{
                 marginLeft: "10px",
                 padding: "5px",
@@ -121,8 +143,8 @@ function Settings() {
             Daily Fats Goal:
             <input
               type="number"
-              value={goals.goal_fats}
-              onChange={(e) => handleUpdateGoal(parseFloat(e.target.value), 'goal_fats')}
+              value={tempGoals.goal_fats}
+              onChange={(e) => handleInputChange(e.target.value, 'goal_fats')}
               style={{
                 marginLeft: "10px",
                 padding: "5px",
@@ -132,6 +154,36 @@ function Settings() {
             g
           </label>
         </div>
+      </div>
+      
+      <div style={{ marginTop: '20px' }}>
+        <button
+          onClick={handleUpdateGoals}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginRight: '10px'
+          }}
+        >
+          Update Goals
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#dc3545',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Logout
+        </button>
       </div>
     </div>
   );

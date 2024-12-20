@@ -28,6 +28,7 @@ function CalorieTracker() {
   // Add state for input validation
   const [weightError, setWeightError] = useState('');
   const [recipes, setRecipes] = useState([]);
+  const [availableIngredients, setAvailableIngredients] = useState({});
 
   // Simplify input handler to just update state
   const handleWeightChange = (e) => {
@@ -43,7 +44,7 @@ function CalorieTracker() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [itemsResponse, eatenResponse, settingsResponse] = await Promise.all([
+        const [itemsResponse, eatenResponse, settingsResponse, availableResponse] = await Promise.all([
           fetch('http://localhost:8000/items/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
@@ -52,21 +53,26 @@ function CalorieTracker() {
           }),
           fetch('http://localhost:8000/user-settings/', {
             headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch('http://localhost:8000/available-ingredients/', {
+            headers: { 'Authorization': `Bearer ${token}` }
           })
         ]);
-        if (!itemsResponse.ok || !eatenResponse.ok || !settingsResponse.ok) {
+        if (!itemsResponse.ok || !eatenResponse.ok || !settingsResponse.ok || !availableResponse.ok) {
           throw new Error('Failed to fetch data');
         }
 
-        const [items, eatenData, userSettings] = await Promise.all([
+        const [items, eatenData, userSettings, available] = await Promise.all([
           itemsResponse.json(),
           eatenResponse.json(),
-          settingsResponse.json()
+          settingsResponse.json(),
+          availableResponse.json()
         ]);
         console.log(userSettings);
 
         setFoodList(items);
         setGoal(userSettings);
+        setAvailableIngredients(available);
 
         // Safely handle eatenData
         const processedEatenFoods = [];
@@ -144,6 +150,12 @@ function CalorieTracker() {
 
     const food = foodList.find((item) => item.item_id === parseInt(selectedFood));
     if (food) {
+      const availableAmount = availableIngredients[food.item_id] || 0;
+      if (availableAmount < weight) {
+        alert(`Not enough ${food.name} available. You only have ${availableAmount}g.`);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       fetch("http://localhost:8000/actions/", {
         method: "POST",
@@ -187,6 +199,10 @@ function CalorieTracker() {
               }];
             }
           });
+          setAvailableIngredients(prev => ({
+            ...prev,
+            [food.item_id]: prev[food.item_id] - weight
+          }));
           setWeightError('');
           // Reset selection and weight after successful addition
           setSelectedFood("");
@@ -322,11 +338,13 @@ function CalorieTracker() {
               <option value="" disabled>
                 Select Food
               </option>
-              {foodList.map((food) => (
-                <option key={food.item_id} value={food.item_id}>
-                  {food.name}
-                </option>
-              ))}
+              {foodList
+                .filter(food => (availableIngredients[food.item_id] || 0) > 0)
+                .map((food) => (
+                  <option key={food.item_id} value={food.item_id}>
+                    {food.name} ({availableIngredients[food.item_id]}g available)
+                  </option>
+                ))}
             </select>
             <div>
               <input
