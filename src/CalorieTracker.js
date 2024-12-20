@@ -29,11 +29,25 @@ function CalorieTracker() {
   const [weightError, setWeightError] = useState('');
   const [recipes, setRecipes] = useState([]);
   const [availableIngredients, setAvailableIngredients] = useState({});
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [allEatenFoods, setAllEatenFoods] = useState([]);
 
   // Simplify input handler to just update state
   const handleWeightChange = (e) => {
     setWeight(parseInt(e.target.value, 10));
     setWeightError(''); // Clear any previous error
+  };
+
+  // Helper function to format date for API
+  const formatDateForAPI = (date) => {
+    return date.split('T')[0];
+  };
+
+  // Helper function to check if date matches selected date
+  const isMatchingDate = (timestamp) => {
+    const date = new Date(timestamp);
+    const selected = new Date(selectedDate);
+    return date.toDateString() === selected.toDateString();
   };
 
   // Fetch food items, actions, and user settings
@@ -45,22 +59,19 @@ function CalorieTracker() {
       try {
         setLoading(true);
         const [itemsResponse, eatenResponse, settingsResponse, availableResponse] = await Promise.all([
-          fetch('http://localhost:8000/items/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/items/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8000/eaten-food/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/eaten-food/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8000/user-settings/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/user-settings/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8000/available-ingredients/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/available-ingredients/', {
             headers: { 'Authorization': `Bearer ${token}` }
           })
         ]);
-        if (!itemsResponse.ok || !eatenResponse.ok || !settingsResponse.ok || !availableResponse.ok) {
-          throw new Error('Failed to fetch data');
-        }
 
         const [items, eatenData, userSettings, available] = await Promise.all([
           itemsResponse.json(),
@@ -68,27 +79,15 @@ function CalorieTracker() {
           settingsResponse.json(),
           availableResponse.json()
         ]);
-        console.log(userSettings);
 
         setFoodList(items);
         setGoal(userSettings);
         setAvailableIngredients(available);
-
-        // Safely handle eatenData
-        const processedEatenFoods = [];
-        if (eatenData && typeof eatenData === 'object') {
-          Object.entries(eatenData).forEach(([itemId, quantities]) => {
-            const item = items.find(item => item.item_id === parseInt(itemId));
-            if (item && quantities) {
-              processedEatenFoods.push({
-                item,
-                quantities: Array.isArray(quantities) ? quantities : [quantities]
-              });
-            }
-          });
-        }
-        setEatenFoods(processedEatenFoods);
-
+        setAllEatenFoods(eatenData);
+        
+        // Process and set eaten foods for selected date
+        const processedFoods = processEatenFoods(eatenData);
+        setEatenFoods(processedFoods);
       } catch (err) {
         console.error('Error fetching data:', err);
         setEatenFoods([]);
@@ -99,6 +98,14 @@ function CalorieTracker() {
 
     fetchData();
   }, []);
+
+  // Add useEffect to handle date changes
+  useEffect(() => {
+    if (allEatenFoods.length > 0) {
+      const processedFoods = processEatenFoods(allEatenFoods);
+      setEatenFoods(processedFoods);
+    }
+  }, [selectedDate, allEatenFoods]);
 
   const calculateItemMacros = (item, quantity) => {
     const ratio = quantity / item.serving_weight;
@@ -119,12 +126,9 @@ function CalorieTracker() {
 
     try {
       const totals = eatenFoods.reduce((sum, entry) => {
-        if (!entry?.item || !Array.isArray(entry?.quantities)) {
-          return sum;
-        }
+        if (!entry?.item) return sum;
         
-        const totalQuantity = entry.quantities.reduce((a, b) => a + (Number(b) || 0), 0);
-        const itemMacros = calculateItemMacros(entry.item, totalQuantity);
+        const itemMacros = calculateItemMacros(entry.item, entry.quantity);
         
         return {
           calories: sum.calories + (itemMacros.calories || 0),
@@ -157,7 +161,7 @@ function CalorieTracker() {
       }
 
       const token = localStorage.getItem('token');
-      fetch("http://localhost:8000/actions/", {
+      fetch("https://Drakon4ik.pythonanywhere.com/actions/", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -167,73 +171,63 @@ function CalorieTracker() {
           item: food.item_id,
           ingredient: food.item_id,
           action_type: "EAT",
-          quantity: weight
+          quantity: weight,
+          timestamp: selectedDate
         }),
       })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Failed to add food');
-          }
-          return response.json();
+        .then(response => {
+          response.json()
         })
-        .then((newAction) => {
-          // Update eatenFoods with the new action
-          setEatenFoods(prev => {
-            const existingEntry = prev.find(entry => entry.item.item_id === food.item_id);
-            
-            if (existingEntry) {
-              // Add quantity to existing entry
-              return prev.map(entry => 
-                entry.item.item_id === food.item_id 
-                  ? { 
-                      ...entry, 
-                      quantities: [...entry.quantities, weight]
-                    }
-                  : entry
-              );
-            } else {
-              // Create new entry
-              return [...prev, {
-                item: food,
-                quantities: [weight]
-              }];
-            }
-          });
+        .then(newAction => {
+          // Add new eaten food to state
+          setAllEatenFoods(prev => [...prev, {
+            item_id: food.item_id,
+            quantity: weight,
+            timestamp: new Date().toISOString()
+          }]);
+          
+          // Update available ingredients
           setAvailableIngredients(prev => ({
             ...prev,
             [food.item_id]: prev[food.item_id] - weight
           }));
+
           setWeightError('');
-          // Reset selection and weight after successful addition
           setSelectedFood("");
           setWeight(100);
         })
-        .catch((error) => {
+        .catch(error => {
           console.error("Error adding eaten food:", error);
           alert("Failed to add food");
         });
     }
   };
 
-  // Remove food from eaten list
-  const handleRemoveFood = (id) => {
+  // Modified handleRemoveFood to work with new API format
+  const handleRemoveFood = async (actionId, itemId, quantity) => {
     const token = localStorage.getItem('token');
-    fetch(`http://localhost:8000/actions/${id}/`, {
-      method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to remove food');
+    try {
+      const response = await fetch(`https://Drakon4ik.pythonanywhere.com/actions/${actionId}/`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
         }
-        setEatenFoods((prev) => prev.filter((item) => item.action_id !== id));
-      })
-      .catch((error) => {
-        console.error("Error removing eaten food:", error);
-        alert("Failed to remove food");
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove food');
+      }
+
+      // Update both states
+      setAllEatenFoods(prev => prev.filter(food => food.action_id !== actionId));
+      setAvailableIngredients(prev => ({
+        ...prev,
+        [itemId]: (prev[itemId] || 0) + quantity
+      }));
+    } catch (error) {
+      console.error("Error removing eaten food:", error);
+      alert("Failed to remove food");
+    }
   };
 
   // First create styles object for reusability
@@ -267,8 +261,28 @@ function CalorieTracker() {
     justifyContent: 'space-between'
   };
 
+  // Add date navigation functions
+  const changeDate = (offset) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + offset);
+    setSelectedDate(newDate.toISOString().split('T')[0]);
+  };
+
   // Initialize with empty array if undefined
   const safeEatenFoods = Array.isArray(eatenFoods) ? eatenFoods : [];
+
+  // Modified function to process eaten foods
+  const processEatenFoods = (eatenData) => {
+    return eatenData
+      .filter(entry => isMatchingDate(entry.timestamp))
+      .map(entry => ({
+        action_id: entry.action_id,
+        item: foodList.find(item => item.item_id === entry.item_id),
+        quantity: entry.quantity,
+        timestamp: entry.timestamp
+      }))
+      .filter(entry => entry.item); // Filter out any entries where item wasn't found
+  };
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
@@ -276,7 +290,30 @@ function CalorieTracker() {
         <div>Loading...</div>
       ) : (
         <>
-          <h1>Calorie Tracker</h1>
+          {/* Date Navigation */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            gap: '20px',
+            marginBottom: '20px' 
+          }}>
+            <button onClick={() => changeDate(-1)}>&larr; Previous Day</button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+            />
+            <button 
+              onClick={() => changeDate(1)}
+              disabled={selectedDate >= new Date().toISOString().split('T')[0]}
+            >
+              Next Day &rarr;
+            </button>
+          </div>
+
+          <h1>Calorie Tracker - {new Date(selectedDate).toLocaleDateString()}</h1>
 
           {/* Calorie Circle */}
           <div style={{ width: "200px", margin: '0 auto' }}>
@@ -371,17 +408,16 @@ function CalorieTracker() {
             </button>
           </div>
 
-          {/* Added Foods List */}
+          {/* Modified Consumed Foods List */}
           <h2>Consumed Foods</h2>
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {safeEatenFoods.map((entry) => {
-              if (!entry?.item || !Array.isArray(entry?.quantities)) return null;
-              const totalQuantity = entry.quantities.reduce((a, b) => a + b, 0);
-              const itemMacros = calculateItemMacros(entry.item, totalQuantity);
+              if (!entry?.item) return null;
+              const itemMacros = calculateItemMacros(entry.item, entry.quantity);
               
               return (
                 <li 
-                  key={entry.item.item_id}
+                  key={entry.action_id}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -393,7 +429,7 @@ function CalorieTracker() {
                   }}
                 >
                   <div>
-                    <strong>{entry.item.name}</strong> - {totalQuantity}g
+                    <strong>{entry.item.name}</strong> - {entry.quantity}g
                     <br />
                     <small>
                       {Math.round(itemMacros.calories)} kcal |
@@ -401,7 +437,23 @@ function CalorieTracker() {
                       C: {Math.round(itemMacros.carbs)}g |
                       F: {Math.round(itemMacros.fats)}g
                     </small>
+                    <div style={{ fontSize: '0.8em', color: '#666' }}>
+                      {new Date(entry.timestamp).toLocaleTimeString()}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleRemoveFood(entry.action_id, entry.item.item_id, entry.quantity)}
+                    style={{
+                      padding: '5px 10px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Remove
+                  </button>
                 </li>
               );
             })}

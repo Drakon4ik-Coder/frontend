@@ -24,7 +24,7 @@ function Settings() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    fetch('http://localhost:8000/user-settings/', {
+    fetch('https://Drakon4ik.pythonanywhere.com/user-settings/', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(response => {
@@ -45,7 +45,7 @@ function Settings() {
   const handleUpdateGoals = async () => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('http://localhost:8000/user-settings/', {
+      const response = await fetch('https://Drakon4ik.pythonanywhere.com/user-settings/', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

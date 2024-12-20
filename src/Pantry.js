@@ -10,6 +10,8 @@ function Pantry() {
   const [selectedMealRecipe, setSelectedMealRecipe] = useState(null);
   const [recipeIngredients, setRecipeIngredients] = useState([]);
   const [adjustedQuantities, setAdjustedQuantities] = useState({});
+  const [recommendations, setRecommendations] = useState([]);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -19,13 +21,13 @@ function Pantry() {
       try {
         setLoading(true);
         const [itemsResponse, availableResponse, recipesResponse] = await Promise.all([
-          fetch('http://localhost:8000/items/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/items/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8000/available-ingredients/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/available-ingredients/', {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8000/recipes/', {
+          fetch('https://Drakon4ik.pythonanywhere.com/recipes/', {
             headers: { 'Authorization': `Bearer ${token}` }
           })
         ]);
@@ -77,7 +79,7 @@ function Pantry() {
     const food = foodList.find((item) => item.item_id === parseInt(selectedFood));
     
     if (food) {
-      fetch("http://localhost:8000/actions/", {
+      fetch("https://Drakon4ik.pythonanywhere.com/actions/", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -107,7 +109,7 @@ function Pantry() {
     const food = foodList.find((item) => item.item_id === parseInt(selectedFood));
     
     if (food && availableIngredients[food.item_id] >= quantity) {
-      fetch("http://localhost:8000/actions/", {
+      fetch("https://Drakon4ik.pythonanywhere.com/actions/", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -144,7 +146,7 @@ function Pantry() {
             throw new Error(`Insufficient quantity of ${recipe.ingredient.name}`);
           }
 
-          await fetch("http://localhost:8000/actions/", {
+          await fetch("https://Drakon4ik.pythonanywhere.com/actions/", {
             method: "POST",
             headers: { 
               "Content-Type": "application/json",
@@ -182,6 +184,33 @@ function Pantry() {
     }));
   };
 
+  const fetchRecommendations = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch('https://Drakon4ik.pythonanywhere.com/meal-recommendations/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.status === 204) {
+        setRecommendations([]);
+        setShowRecommendations(true);
+        alert('No recommendations available at this time.');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch recommendations');
+      }
+      
+      const data = await response.json();
+      setRecommendations(data);
+      setShowRecommendations(true);
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      alert('Failed to get meal recommendations');
+    }
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -190,6 +219,69 @@ function Pantry() {
     <div>
       <h1>Pantry</h1>
       
+      {/* Add Recommendations Button */}
+      <button
+        onClick={fetchRecommendations}
+        style={{
+          padding: '10px 20px',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          marginBottom: '20px'
+        }}
+      >
+        Get Meal Recommendations
+      </button>
+
+      {/* Recommendations Section */}
+      {showRecommendations && recommendations.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <h2>Recommended Meals</h2>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {recommendations.map(meal => (
+              <div
+                key={meal.item_id}
+                style={{
+                  padding: '15px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div>
+                  <strong>{meal.name}</strong>
+                  <div style={{ fontSize: '0.9em', color: '#666' }}>
+                    {Math.round(meal.calories)} kcal | P: {Math.round(meal.protein)}g | 
+                    C: {Math.round(meal.carbs_sugar + meal.carbs_fiber + meal.carbs_starch)}g | 
+                    F: {Math.round(meal.fats_saturated + meal.fats_unsaturated)}g
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedFood(meal.item_id.toString());
+                    setShowRecommendations(false);
+                  }}
+                  style={{
+                    padding: '5px 10px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cook This
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <select
           value={selectedFood}
