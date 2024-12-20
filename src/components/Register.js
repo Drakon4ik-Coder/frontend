@@ -10,7 +10,7 @@ export function Register() {
     const handleSubmit = async (e) => {
       e.preventDefault();
       try {
-        const response = await fetch('http://Drakon4ik.pythonanywhere.com/api/register/', {
+        const response = await fetch('https://Drakon4ik.pythonanywhere.com/api/register/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, username, password }),

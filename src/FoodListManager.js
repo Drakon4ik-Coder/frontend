@@ -21,10 +21,10 @@ function FoodListManager() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     Promise.all([
-      fetch("http://localhost:8000/items/", {
+      fetch("https://Drakon4ik.pythonanywhere.com/items/", {
         headers: { 'Authorization': `Bearer ${token}` }
       }),
-      fetch("http://localhost:8000/recipes/", {
+      fetch("https://Drakon4ik.pythonanywhere.com/recipes/", {
         headers: { 'Authorization': `Bearer ${token}` }
       })
     ])
@@ -67,7 +67,7 @@ function FoodListManager() {
     try {
       if (isMeal && ingredients.length > 0) {
         // Create meal
-        const mealResponse = await fetch("http://localhost:8000/items/", {
+        const mealResponse = await fetch("https://Drakon4ik.pythonanywhere.com/items/", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
@@ -91,7 +91,7 @@ function FoodListManager() {
 
         // Create recipes for ingredients
         for (const ingredient of ingredients) {
-          await fetch("http://localhost:8000/recipes/", {
+          await fetch("https://Drakon4ik.pythonanywhere.com/recipes/", {
             method: "POST",
             headers: { 
               "Content-Type": "application/json",
@@ -108,7 +108,7 @@ function FoodListManager() {
         setFoodList(prev => [...prev, newMeal]);
       } else {
         // Create regular food item
-        const itemResponse = await fetch("http://localhost:8000/items/", {
+        const itemResponse = await fetch("https://Drakon4ik.pythonanywhere.com/items/", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
